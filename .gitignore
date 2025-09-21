@@ -1,0 +1,74 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock file (include for applications, exclude for libraries)
+# Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Large data directories (not needed in repo)
+/FOREX\ DATA/
+/CONCEPT/
+/RUST\ BASED\ eBPF\ SANDBOX/
+
+# Development artifacts
+*_COMPLETE.md
+*_STATUS.md
+*_PLAN.md
+*_DEPLOYMENT*.md
+*_IMPLEMENTATION*.md
+COMPILATION_FIXES_NEEDED.md
+COMPREHENSIVE_TESTING_PLAN.md
+HFT_DEPLOYMENT_STRATEGY.md
+FINAL_*.md
+REVOLUTIONARY_*.md
+STATIC_EXECUTABLE_*.md
+MULTI_CURRENCY_*.md
+HISTORICAL_DATA_*.md
+
+# Test files
+test_*.txt
+*.json
+anomaly_trading_results_*.json
+
+# Old deployment files
+render-*.yaml
+render.*.yaml
+deploy_*.sh
+Dockerfile.hft
+
+# Temporary files
+*.tmp
+*.temp
+.git-credentials
+
+# Environment files with secrets (keep templates)
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+logs/
+
+# Build outputs
+*.exe
+*.dll
+*.so
+*.dylib

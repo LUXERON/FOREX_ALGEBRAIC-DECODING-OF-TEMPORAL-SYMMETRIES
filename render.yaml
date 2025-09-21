@@ -1,0 +1,320 @@
+services:
+  # High-Frequency Trading Engine
+  - type: web
+    name: hft-trading-engine
+    runtime: docker
+    plan: pro
+    region: oregon
+    buildCommand: |
+      # Build optimized Rust binary
+      cargo build --release --bin ctrader-bridge
+      # Create minimal Alpine container
+      docker build -f Dockerfile.hft -t hft-engine .
+    startCommand: ./target/release/ctrader-bridge
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: CTRADER_CLIENT_ID
+        value: "14877_vyfOpsRldMcTyq4M2Qien3KxqG43yVFlSt0jLNjBhr0LX2Cpd7"
+      - key: CTRADER_CLIENT_SECRET
+        sync: false  # Keep secret secure
+      - key: CTRADER_ACCOUNT_ID
+        value: "1259560"  # Live account
+      - key: CTRADER_SERVER
+        value: "cTrader LIVE"
+      - key: FOREX_DATA_PATH
+        value: /app/data
+      - key: HFT_MODE
+        value: "true"
+      - key: EXECUTION_INTERVAL_MS
+        value: "100"
+      - key: MAX_POSITION_SIZE
+        value: "50"
+      - key: RISK_PER_TRADE
+        value: "0.01"
+    healthCheckPath: /health
+    autoDeploy: true
+    scaling:
+      minInstances: 2
+      maxInstances: 10
+      targetCPUPercent: 70
+      targetMemoryPercent: 80
+
+  # Multi-Currency Analysis Engine
+  - type: worker
+    name: multi-currency-analyzer
+    runtime: docker
+    plan: standard
+    region: oregon
+    buildCommand: |
+      cargo build --release --bin multi-currency-trader
+      docker build -f Dockerfile.analyzer -t currency-analyzer .
+    startCommand: ./target/release/multi-currency-trader
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: FOREX_DATA_PATH
+        value: /app/data
+      - key: ANALYSIS_MODE
+        value: "continuous"
+      - key: CURRENCY_PAIRS
+        value: "EURUSD,GBPUSD,USDJPY,USDCHF,USDCAD,EURGBP,EURJPY"
+    autoDeploy: true
+    scaling:
+      minInstances: 1
+      maxInstances: 5
+
+  # Real-Time Dashboard
+  - type: web
+    name: trading-dashboard
+    runtime: docker
+    plan: starter
+    region: oregon
+    buildCommand: |
+      cargo build --release --bin anomaly-dashboard
+      docker build -f Dockerfile.dashboard -t trading-dashboard .
+    startCommand: ./target/release/anomaly-dashboard
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: DASHBOARD_PORT
+        value: "8080"
+      - key: WEBSOCKET_ENABLED
+        value: "true"
+    healthCheckPath: /dashboard/health
+    autoDeploy: true
+
+  # PostgreSQL Database for Trade History
+  - type: pserv
+    name: trading-database
+    plan: basic_256mb
+    region: oregon
+    databaseName: forex_trading
+    databaseUser: trader
+    ipAllowList: []
+
+  # Redis for Real-Time Data Caching
+  - type: redis
+    name: trading-cache
+    plan: starter
+    region: oregon
+    ipAllowList: []
+
+# Environment Groups
+envVarGroups:
+  - name: trading-secrets
+    envVars:
+      - key: CTRADER_CLIENT_SECRET
+        value: "smo86RDCn85U5Fy5hIuCi4oScBJMiKwlEt3x0zxBC406ioUioE"
+        generateValue: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: trading-database
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: trading-cache
+          property: connectionString
+
+# Build Configuration
+build:
+  - name: forex-hft-system
+    buildCommand: |
+      # Install Rust and dependencies
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      source ~/.cargo/env
+      
+      # Build all binaries
+      cargo build --release --bin ctrader-bridge
+      cargo build --release --bin multi-currency-trader
+      cargo build --release --bin anomaly-dashboard
+      
+      # Create optimized Docker images
+      docker build -f Dockerfile.hft -t hft-engine .
+      docker build -f Dockerfile.analyzer -t currency-analyzer .
+      docker build -f Dockerfile.dashboard -t trading-dashboard .
+
+# Dockerfile Templates (to be created separately)
+# Dockerfile.hft - Ultra-lightweight Alpine container for HFT engine
+# Dockerfile.analyzer - Standard container for multi-currency analysis
+# Dockerfile.dashboard - Web-enabled container for dashboard
+
+# Monitoring and Alerting
+monitoring:
+  - service: hft-trading-engine
+    metrics:
+      - cpu_usage
+      - memory_usage
+      - http_request_count
+      - http_latency
+    alerts:
+      - condition: cpu_usage > 80
+        action: scale_up
+      - condition: memory_usage > 85
+        action: restart
+      - condition: http_latency > 200
+        action: alert
+
+  - service: multi-currency-analyzer
+    metrics:
+      - cpu_usage
+      - memory_usage
+    alerts:
+      - condition: cpu_usage > 70
+        action: scale_up
+
+# Networking
+networking:
+  - service: hft-trading-engine
+    allowedOrigins:
+      - "https://ctrader.com"
+      - "https://api.ctrader.com"
+    ports:
+      - 8080
+      - 8443
+
+  - service: trading-dashboard
+    allowedOrigins:
+      - "*"
+    ports:
+      - 8080
+
+# Backup and Recovery
+backup:
+  - database: trading-database
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: 30  # 30 days
+
+# Deployment Strategy
+deployment:
+  strategy: rolling
+  maxUnavailable: 1
+  maxSurge: 1
+  healthCheck:
+    path: /health
+    intervalSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+
+# Resource Limits
+resources:
+  hft-trading-engine:
+    cpu: "2000m"
+    memory: "4Gi"
+    disk: "20Gi"
+  
+  multi-currency-analyzer:
+    cpu: "1000m"
+    memory: "2Gi"
+    disk: "10Gi"
+  
+  trading-dashboard:
+    cpu: "500m"
+    memory: "1Gi"
+    disk: "5Gi"
+
+# Security Configuration
+security:
+  - service: hft-trading-engine
+    httpsOnly: true
+    headers:
+      - "Strict-Transport-Security: max-age=31536000"
+      - "X-Content-Type-Options: nosniff"
+      - "X-Frame-Options: DENY"
+  
+  - service: trading-dashboard
+    httpsOnly: true
+    basicAuth:
+      username: admin
+      password:
+        fromEnvVar: DASHBOARD_PASSWORD
+
+# Logging Configuration
+logging:
+  level: info
+  format: json
+  destinations:
+    - stdout
+    - file: /var/log/forex-trading.log
+  retention: 7  # 7 days
+
+# Performance Optimization
+performance:
+  - service: hft-trading-engine
+    optimization: latency
+    caching:
+      enabled: true
+      ttl: 60  # 1 minute
+    compression: gzip
+  
+  - service: multi-currency-analyzer
+    optimization: throughput
+    batchSize: 1000
+    parallelism: 4
+
+# Integration Configuration
+integrations:
+  ctrader:
+    apiUrl: "https://api.ctrader.com/v1"
+    timeout: 100  # 100ms for HFT
+    retries: 3
+    
+  forex_data:
+    source: "historical"
+    path: "/app/data/forex"
+    format: "csv"
+    
+  monitoring:
+    prometheus:
+      enabled: true
+      port: 9090
+    grafana:
+      enabled: true
+      port: 3000
+
+# Scaling Rules
+scaling:
+  hft-trading-engine:
+    rules:
+      - metric: cpu_usage
+        threshold: 70
+        action: scale_up
+        cooldown: 300  # 5 minutes
+      - metric: latency_p95
+        threshold: 150  # 150ms
+        action: scale_up
+        cooldown: 180  # 3 minutes
+  
+  multi-currency-analyzer:
+    rules:
+      - metric: queue_depth
+        threshold: 1000
+        action: scale_up
+        cooldown: 600  # 10 minutes
+
+# Health Checks
+healthChecks:
+  hft-trading-engine:
+    path: /health
+    port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+    
+  trading-dashboard:
+    path: /dashboard/health
+    port: 8080
+    initialDelaySeconds: 15
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 2
+
+# Maintenance Windows
+maintenance:
+  schedule: "0 3 * * SUN"  # Sundays at 3 AM
+  duration: 2  # 2 hours
+  notifications:
+    - email: admin@trading-system.com
+    - slack: "#trading-alerts"

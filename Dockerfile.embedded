@@ -1,0 +1,55 @@
+# Multi-stage build for embedded forex trading system
+FROM rust:1.75-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    musl-dev \
+    gcc \
+    sqlite-dev \
+    pkgconfig
+
+# Set working directory
+WORKDIR /app
+
+# Copy source code
+COPY . .
+
+# Build embedded trader with static linking
+RUN cargo build --release --bin embedded-trader --target x86_64-unknown-linux-musl
+
+# Runtime stage - minimal Alpine
+FROM alpine:3.18
+
+# Install minimal runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    sqlite
+
+# Create non-root user
+RUN addgroup -g 1000 trader && \
+    adduser -D -s /bin/sh -u 1000 -G trader trader
+
+# Set working directory
+WORKDIR /app
+
+# Copy embedded trader binary
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/embedded-trader /app/embedded-trader
+
+# Copy forex data (embedded in binary via SQLite)
+COPY --from=builder /app/FOREX\ DATA /app/data
+
+# Set ownership
+RUN chown -R trader:trader /app
+
+# Switch to non-root user
+USER trader
+
+# Expose port (if needed for monitoring)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD pgrep embedded-trader || exit 1
+
+# Run embedded trader
+CMD ["./embedded-trader"]

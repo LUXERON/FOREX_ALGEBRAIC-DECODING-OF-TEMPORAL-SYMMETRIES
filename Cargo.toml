@@ -1,0 +1,129 @@
+[package]
+name = "forex-pattern-reconstruction"
+version = "0.1.0"
+edition = "2021"
+authors = ["RFARREY <45320379+RFARREY@users.noreply.github.com>"]
+description = "Time-Symmetric Forex Pattern Recognition using Galois Field Cyclicity"
+license = "MIT"
+repository = "https://github.com/RFARREY/forex-pattern-reconstruction"
+
+[dependencies]
+# Core mathematical libraries
+nalgebra = "0.32"
+num-complex = "0.4"
+num-traits = "0.2"
+
+# Time series and data processing
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+csv = "1.3"
+polars = { version = "0.35", features = ["lazy", "csv", "temporal"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Random number generation
+rand = "0.8"
+
+# Configuration
+clap = { version = "4.0", features = ["derive"] }
+toml = "0.8"
+
+# CLI Dashboard
+crossterm = "0.27"
+ratatui = "0.28"
+tui-input = "0.8"
+tui = "0.19"
+
+# UUID generation
+uuid = { version = "1.0", features = ["v4"] }
+
+# HTTP client for cTrader API
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# Web server for CLI API
+warp = "0.3"
+
+# Embedded database and compression
+rusqlite = { version = "0.31", features = ["bundled"] }
+flate2 = "1.0"
+bincode = "1.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+
+[features]
+default = []
+
+[[bin]]
+name = "forex-pattern-analyzer"
+path = "src/main.rs"
+
+[[bin]]
+name = "dashboard"
+path = "src/bin/dashboard.rs"
+
+[[bin]]
+name = "data-integration-test"
+path = "src/bin/data_integration_test.rs"
+
+[[bin]]
+name = "synthetic-trader"
+path = "src/bin/synthetic_trader.rs"
+
+[[bin]]
+name = "anomaly-trader"
+path = "src/bin/anomaly_trader.rs"
+
+[[bin]]
+name = "anomaly-dashboard"
+path = "src/bin/anomaly_dashboard.rs"
+
+[[bin]]
+name = "multi-currency-trader"
+path = "src/bin/multi_currency_trader.rs"
+
+[[bin]]
+name = "ctrader-bridge"
+path = "src/bin/ctrader_bridge.rs"
+
+[[bin]]
+name = "embedded-trader"
+path = "src/bin/embedded_trader.rs"
+
+[[bin]]
+name = "forex-cli-controller"
+path = "src/bin/forex_cli_controller.rs"
+
+[[bin]]
+name = "simple-cli-controller"
+path = "src/bin/simple_cli_controller.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true  # Remove debug symbols for smaller binary
+target-cpu = "native"
+
+# Static linking configuration for musl
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[profile.dev]
+opt-level = 1
+debug = true
+
+[profile.bench]
+opt-level = 3
+debug = false
+lto = true
