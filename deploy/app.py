@@ -31,6 +31,9 @@ def find_executable():
         current_dir / "websocket-trader.exe",
         current_dir / "../target/release/websocket-trader",
         current_dir / "../target/release/websocket-trader.exe",
+        # Try to find any executable in the directory
+        current_dir / "websocket-trader-linux",
+        current_dir / "websocket-trader-windows.exe",
     ]
     
     for path in possible_paths:
