@@ -49,8 +49,13 @@ uuid = { version = "1.0", features = ["v4"] }
 # HTTP client for cTrader API
 reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
 
-# Web server for CLI API
-warp = "0.3"
+# Web server for CLI API with WebSocket support
+warp = { version = "0.3", features = ["websocket"] }
+futures-util = "0.3"
+
+# WebSocket client for CLI
+tokio-tungstenite = "0.21"
+url = "2.5"
 
 # Embedded database and compression
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -106,6 +111,14 @@ path = "src/bin/forex_cli_controller.rs"
 [[bin]]
 name = "simple-cli-controller"
 path = "src/bin/simple_cli_controller.rs"
+
+[[bin]]
+name = "websocket-trader"
+path = "src/bin/websocket_trader.rs"
+
+[[bin]]
+name = "websocket-cli"
+path = "src/bin/websocket_cli.rs"
 
 [profile.release]
 opt-level = 3
