@@ -1,0 +1,2 @@
+# No external dependencies required
+# The Python wrapper uses only standard library modules
