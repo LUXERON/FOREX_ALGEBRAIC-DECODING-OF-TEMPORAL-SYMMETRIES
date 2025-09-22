@@ -53,8 +53,8 @@ reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-feature
 warp = { version = "0.3", features = ["websocket"] }
 futures-util = "0.3"
 
-# WebSocket client for CLI
-tokio-tungstenite = "0.21"
+# WebSocket client for CLI with TLS support
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
 url = "2.5"
 
 # Embedded database and compression
@@ -119,6 +119,10 @@ path = "src/bin/websocket_trader.rs"
 [[bin]]
 name = "websocket-cli"
 path = "src/bin/websocket_cli.rs"
+
+[[bin]]
+name = "integrated-trading-server"
+path = "src/bin/integrated_trading_server.rs"
 
 [profile.release]
 opt-level = 3
