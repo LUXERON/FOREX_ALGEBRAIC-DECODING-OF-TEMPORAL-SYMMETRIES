@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use futures_util::{SinkExt, StreamExt};
 use chrono::Utc;
+use rand::Rng;
 
 // Import the REAL mathematical engine
 use forex_pattern_reconstruction::{
@@ -34,6 +35,9 @@ pub enum WSMessage {
     GetPairs,
     GetAnalysis { pair: String },
     SwitchMode { mode: String },
+    ExecuteTrade { pair: String, action: String },
+    GetBalance,
+    GetPositions,
     
     // Responses to CLI
     Status { 
@@ -66,11 +70,23 @@ pub enum WSMessage {
         price: f64, 
         timestamp: String 
     },
-    TradeExecuted { 
-        pair: String, 
-        action: String, 
-        price: f64, 
-        timestamp: String 
+    TradeExecuted {
+        pair: String,
+        action: String,
+        price: f64,
+        timestamp: String,
+        order_id: String,
+    },
+    Balance {
+        demo_balance: f64,
+        total_trades: u32,
+        successful_trades: u32,
+        total_profit: f64,
+        success_rate: f64,
+    },
+    Positions {
+        active_positions: Vec<String>,
+        position_count: u32,
     },
     AnomalyDetected {
         pair: String,
@@ -78,6 +94,28 @@ pub enum WSMessage {
         confidence: f64,
         timestamp: String,
     },
+}
+
+/// Trading metrics for profit tracking
+#[derive(Debug, Clone)]
+struct TradingMetrics {
+    demo_balance: f64,
+    total_trades: u32,
+    successful_trades: u32,
+    total_profit: f64,
+    active_positions: Vec<String>,
+}
+
+impl Default for TradingMetrics {
+    fn default() -> Self {
+        Self {
+            demo_balance: 100000.0, // Start with $100k demo balance
+            total_trades: 0,
+            successful_trades: 0,
+            total_profit: 0.0,
+            active_positions: Vec::new(),
+        }
+    }
 }
 
 /// Application state with REAL mathematical engine
@@ -95,6 +133,9 @@ pub struct AppState {
     pub multi_currency_manager: Arc<Mutex<Option<MultiCurrencyManager>>>,
     pub anomaly_detector: Arc<Mutex<Option<TemporalAnomalyDetector>>>,
     pub historical_data: Arc<Mutex<Vec<ForexDataPoint>>>,
+
+    // Trading metrics for profit tracking
+    pub trading_metrics: Arc<Mutex<TradingMetrics>>,
 }
 
 #[tokio::main]
@@ -131,6 +172,7 @@ async fn main() -> Result<()> {
         multi_currency_manager: Arc::new(Mutex::new(None)),
         anomaly_detector: Arc::new(Mutex::new(None)),
         historical_data: Arc::new(Mutex::new(Vec::new())),
+        trading_metrics: Arc::new(Mutex::new(TradingMetrics::default())),
     };
     
     // Initialize the REAL mathematical engine in background
@@ -407,6 +449,28 @@ async fn handle_ws_command(msg: WSMessage, state: &AppState) -> WSMessage {
             *state.trading_mode.lock().await = mode.clone();
             WSMessage::ModeChanged { new_mode: mode }
         }
+        WSMessage::ExecuteTrade { pair, action } => {
+            execute_demo_trade(&pair, &action, state).await
+        }
+        WSMessage::GetBalance => {
+            let metrics = state.trading_metrics.lock().await;
+            WSMessage::Balance {
+                demo_balance: metrics.demo_balance,
+                total_trades: metrics.total_trades,
+                successful_trades: metrics.successful_trades,
+                total_profit: metrics.total_profit,
+                success_rate: if metrics.total_trades > 0 {
+                    (metrics.successful_trades as f64 / metrics.total_trades as f64) * 100.0
+                } else { 0.0 },
+            }
+        }
+        WSMessage::GetPositions => {
+            let metrics = state.trading_metrics.lock().await;
+            WSMessage::Positions {
+                active_positions: metrics.active_positions.clone(),
+                position_count: metrics.active_positions.len() as u32,
+            }
+        }
         _ => WSMessage::Error { message: "Unknown command".to_string() }
     }
 }
@@ -452,6 +516,54 @@ async fn perform_real_analysis(pair: &str, state: &AppState) -> WSMessage {
         confidence: correlation,
         cycle_alignment: format!("Cycle position: {:.1}%", time_factor * 100.0),
         temporal_symmetries: 42, // Placeholder for real count
+    }
+}
+
+/// Execute a DEMO trade with profit/loss simulation
+async fn execute_demo_trade(pair: &str, action: &str, state: &AppState) -> WSMessage {
+    let current_time = Utc::now();
+    let order_id = format!("DEMO_{}", current_time.timestamp_millis());
+
+    // Simulate trade execution with realistic profit/loss
+    let mut metrics = state.trading_metrics.lock().await;
+
+    // Simulate trade outcome (70% success rate for demo)
+    let is_successful = rand::random::<f64>() < 0.70;
+    let profit_loss = if is_successful {
+        // Profitable trade: $50-$500
+        50.0 + (rand::random::<f64>() * 450.0)
+    } else {
+        // Loss trade: -$20 to -$200
+        -20.0 - (rand::random::<f64>() * 180.0)
+    };
+
+    // Update metrics
+    metrics.total_trades += 1;
+    if is_successful {
+        metrics.successful_trades += 1;
+    }
+    metrics.total_profit += profit_loss;
+    metrics.demo_balance += profit_loss;
+
+    // Add to active positions (simulate holding for a few minutes)
+    let position_info = format!("{} {} @ {:.5} (P&L: ${:.2})",
+                               pair, action, 1.08000 + (rand::random::<f64>() * 0.01), profit_loss);
+    metrics.active_positions.push(position_info.clone());
+
+    // Remove old positions (keep only last 5)
+    if metrics.active_positions.len() > 5 {
+        metrics.active_positions.remove(0);
+    }
+
+    println!("💰 DEMO TRADE EXECUTED: {} {} - P&L: ${:.2} - Balance: ${:.2}",
+             pair, action, profit_loss, metrics.demo_balance);
+
+    WSMessage::TradeExecuted {
+        pair: pair.to_string(),
+        action: action.to_string(),
+        price: 1.08000 + (rand::random::<f64>() * 0.01),
+        timestamp: current_time.to_rfc3339(),
+        order_id,
     }
 }
 
